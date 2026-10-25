@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Dashboard | InterviewAI</title>
+
+    <link rel="stylesheet" href="assets/css/dashboard.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+</head>
+
+<body>
+
+    <!-- ================= TOP NAVBAR ================= -->
+
+    <nav class="dashboard-navbar">
+
+        <div class="logo">
+            <h2>InterviewAI</h2>
+        </div>
+
+        <div class="nav-links">
+
+            <a href="dashboard.html">Dashboard</a>
+
+            <a href="resume-builder.html">
+                ATS Resume Builder
+            </a>
+
+            <a href="profile.html">Profile</a>
+
+            <a href="performance.html">Performance</a>
+
+            <a href="index.html" id="topLogoutBtn">
+                Logout
+            </a>
+
+        </div>
+
+    </nav>
+
+
+    <!-- ================= DASHBOARD NAVBAR ================= -->
+
+    <nav class="dashboard-navbar">
+
+        <div class="logo">
+            InterviewAI
+        </div>
+
+        <div class="search-box">
+
+            <i class="fa-solid fa-magnifying-glass"></i>
+
+            <input
+                type="text"
+                placeholder="Search">
+
+        </div>
+
+        <div class="nav-right">
+
+            <i class="fa-regular fa-bell notification"></i>
+
+            <div class="profile">
+
+                <i class="fa-solid fa-circle-user"></i>
+
+                <span id="dashboardUserName">
+                    Loading...
+                </span>
+
+            </div>
+
+        </div>
+
+    </nav>
+
+
+    <!-- ================= WELCOME SECTION ================= -->
+
+    <section class="welcome-section">
+
+        <div class="welcome-left">
+
+            <h1>
+                Welcome Back 👋
+            </h1>
+
+            <p>
+                Ready to practice today? Continue improving your
+                interview skills with AI-powered mock interviews
+                and personalized feedback.
+            </p>
+
+            <button
+                class="start-btn"
+                onclick="window.location.href='interview-type.html'">
+
+                Start Interview
+
+            </button>
+
+        </div>
+
+
+        <div class="welcome-right">
+
+            <div class="welcome-card">
+
+                <h3>
+                    Today's Goal
+                </h3>
+
+                <p>
+                    Complete 2 Mock Interviews
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= QUICK ACTIONS ================= -->
+
+    <section class="quick-actions">
+
+        <h2>
+            Quick Actions
+        </h2>
+
+        <div class="action-container">
+
+
+            <!-- HR INTERVIEW -->
+
+            <div class="action-card">
+
+                <div class="action-icon">
+                    🎤
+                </div>
+
+                <h3>
+                    HR Interview
+                </h3>
+
+                <p>
+                    Practice HR interview questions with AI.
+                </p>
+
+                <button
+                    onclick="window.location.href='interview-type.html'">
+
+                    Start
+
+                </button>
+
+            </div>
+
+
+            <!-- TECHNICAL INTERVIEW -->
+
+            <div class="action-card">
+
+                <div class="action-icon">
+                    💻
+                </div>
+
+                <h3>
+                    Technical Interview
+                </h3>
+
+                <p>
+                    Solve technical interview questions.
+                </p>
+
+                <button
+                    onclick="window.location.href='interview-type.html'">
+
+                    Start
+
+                </button>
+
+            </div>
+
+
+            <!-- RESUME -->
+
+            <div class="action-card">
+
+                <div class="action-icon">
+                    📄
+                </div>
+
+                <h3>
+                    ATS Resume Builder
+                </h3>
+
+                <p>
+                    Create an ATS-friendly resume.
+                </p>
+
+                <button
+                    onclick="window.location.href='resume-builder.html'">
+
+                    Open
+
+                </button>
+
+            </div>
+
+
+            <!-- PERFORMANCE -->
+
+            <div class="action-card">
+
+                <div class="action-icon">
+                    📊
+                </div>
+
+                <h3>
+                    Performance
+                </h3>
+
+                <p>
+                    View interview scores and progress.
+                </p>
+
+                <button
+                    onclick="window.location.href='performance.html'">
+
+                    View
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= STATISTICS ================= -->
+
+    <section class="statistics">
+
+        <h2>
+            Your Statistics
+        </h2>
+
+        <div class="stats-container">
+
+
+            <!-- INTERVIEWS -->
+
+            <div class="stat-card">
+
+                <h3 id="interviewsTaken">
+                    0
+                </h3>
+
+                <p>
+                    Interviews Taken
+                </p>
+
+            </div>
+
+
+            <!-- AVERAGE SCORE -->
+
+            <div class="stat-card">
+
+                <h3 id="averageScore">
+                    0%
+                </h3>
+
+                <p>
+                    Average Score
+                </p>
+
+            </div>
+
+
+            <!-- BEST SCORE -->
+
+            <div class="stat-card">
+
+                <h3 id="bestScore">
+                    0%
+                </h3>
+
+                <p>
+                    Best Score
+                </p>
+
+            </div>
+
+
+            <!-- ATS SCORE -->
+
+            <div class="stat-card">
+
+                <h3 id="atsScore">
+                    --
+                </h3>
+
+                <p>
+                    ATS Resume Score
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= RECENT INTERVIEW HISTORY ================= -->
+
+    <section class="history">
+
+        <h2>
+            Recent Interview History
+        </h2>
+
+        <div class="history-table">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Date
+                        </th>
+
+                        <th>
+                            Interview Type
+                        </th>
+
+                        <th>
+                            Difficulty
+                        </th>
+
+                        <th>
+                            Score
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="historyBody">
+
+                    <tr>
+
+                        <td colspan="5">
+                            Loading interview history...
+                        </td>
+
+                    </tr>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+    <!-- ================= WELCOME NAME ================= -->
+
+    <h2>
+        Welcome back,
+        <span id="welcomeName"></span>!
+    </h2>
+
+
+    <!-- ================= LOGOUT ================= -->
+
+    <a href="index.html" id="logoutBtn">
+        Logout
+    </a>
+
+
+    <!-- ================= JAVASCRIPT ================= -->
+
+    <script src="assets/js/dashboard.js"></script>
+
+</body>
+
+</html>

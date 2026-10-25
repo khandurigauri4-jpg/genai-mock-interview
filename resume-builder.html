@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ATS Resume Builder | InterviewAI</title>
+
+    <link rel="stylesheet" href="assets/css/resume-builder.css">
+
+</head>
+
+<body>
+
+<div class="builder-container">
+
+    <div class="builder-header">
+
+        <h1>ATS Resume Builder</h1>
+
+        <p>
+            Build a professional, ATS-friendly resume tailored for modern job applications.
+        </p>
+
+    </div>
+
+
+    <form id="resumeForm">
+
+
+        <!-- PERSONAL INFORMATION -->
+
+        <div class="form-section">
+
+            <h2>Personal Information</h2>
+
+            <div class="form-grid">
+
+                <div class="input-group">
+
+                    <label>Full Name *</label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        placeholder="e.g. Gauri Khanduri"
+                        required
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Email *</label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        placeholder="e.g. gauri@gmail.com"
+                        required
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Phone Number</label>
+
+                    <input
+                        type="text"
+                        id="phone"
+                        placeholder="+91 9876543210"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Location</label>
+
+                    <input
+                        type="text"
+                        id="location"
+                        placeholder="Dehradun, India"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>LinkedIn</label>
+
+                    <input
+                        type="text"
+                        id="linkedin"
+                        placeholder="linkedin.com/in/yourname"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>GitHub</label>
+
+                    <input
+                        type="text"
+                        id="github"
+                        placeholder="github.com/yourusername"
+                    >
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- PROFESSIONAL SUMMARY -->
+
+        <div class="form-section">
+
+            <h2>Professional Summary</h2>
+
+            <div class="input-group">
+
+                <label>About You</label>
+
+                <textarea
+                    id="summary"
+                    placeholder="Write 2–4 lines describing your skills, interests and career goals..."
+                ></textarea>
+
+            </div>
+
+        </div>
+
+
+        <!-- EDUCATION -->
+
+        <div class="form-section">
+
+            <h2>Education</h2>
+
+            <div class="form-grid">
+
+                <div class="input-group">
+
+                    <label>Degree</label>
+
+                    <input
+                        type="text"
+                        id="degree"
+                        placeholder="B.Tech Computer Science Engineering"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>University / College</label>
+
+                    <input
+                        type="text"
+                        id="college"
+                        placeholder="Graphic Era Deemed to be University"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Graduation Year</label>
+
+                    <input
+                        type="text"
+                        id="graduation"
+                        placeholder="2029"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>CGPA / Percentage</label>
+
+                    <input
+                        type="text"
+                        id="cgpa"
+                        placeholder="9.04 CGPA"
+                    >
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- SKILLS -->
+
+        <div class="form-section">
+
+            <h2>Technical Skills</h2>
+
+            <div class="input-group">
+
+                <label>Skills</label>
+
+                <textarea
+                    id="skills"
+                    placeholder="Java, C++, C, JavaScript, HTML, CSS, SQL, Git, GitHub..."
+                ></textarea>
+
+                <small>
+                    Separate your skills using commas.
+                </small>
+
+            </div>
+
+        </div>
+
+
+        <!-- PROJECTS -->
+
+        <div class="form-section">
+
+            <h2>Projects</h2>
+
+            <div class="input-group">
+
+                <label>Project 1</label>
+
+                <input
+                    type="text"
+                    id="project1Title"
+                    placeholder="Project Name"
+                >
+
+                <textarea
+                    id="project1"
+                    placeholder="Describe the project, your contribution, technologies used and key results..."
+                ></textarea>
+
+            </div>
+
+            <div class="input-group">
+
+                <label>Project 2</label>
+
+                <input
+                    type="text"
+                    id="project2Title"
+                    placeholder="Project Name"
+                >
+
+                <textarea
+                    id="project2"
+                    placeholder="Describe the project..."
+                ></textarea>
+
+            </div>
+
+        </div>
+
+
+        <!-- EXPERIENCE -->
+
+        <div class="form-section">
+
+            <h2>Experience / Internship</h2>
+
+            <div class="form-grid">
+
+                <div class="input-group">
+
+                    <label>Role</label>
+
+                    <input
+                        type="text"
+                        id="role"
+                        placeholder="Software Development Intern"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Company</label>
+
+                    <input
+                        type="text"
+                        id="company"
+                        placeholder="Company Name"
+                    >
+
+                </div>
+
+                <div class="input-group">
+
+                    <label>Duration</label>
+
+                    <input
+                        type="text"
+                        id="duration"
+                        placeholder="June 2027 – August 2027"
+                    >
+
+                </div>
+
+            </div>
+
+            <div class="input-group">
+
+                <label>Experience Description</label>
+
+                <textarea
+                    id="experience"
+                    placeholder="Describe your responsibilities, technologies used and achievements..."
+                ></textarea>
+
+            </div>
+
+        </div>
+
+
+        <!-- CERTIFICATIONS -->
+
+        <div class="form-section">
+
+            <h2>Certifications</h2>
+
+            <div class="input-group">
+
+                <textarea
+                    id="certifications"
+                    placeholder="Certification Name – Issuing Organization&#10;Certification Name – Issuing Organization"
+                ></textarea>
+
+            </div>
+
+        </div>
+
+
+        <!-- ACHIEVEMENTS -->
+
+        <div class="form-section">
+
+            <h2>Achievements</h2>
+
+            <div class="input-group">
+
+                <textarea
+                    id="achievements"
+                    placeholder="Hackathon winner&#10;Solved 100+ LeetCode problems&#10;Debate competition winner"
+                ></textarea>
+
+            </div>
+
+        </div>
+
+
+        <button type="submit" class="generate-btn">
+
+            Generate Professional Resume
+
+        </button>
+
+    </form>
+
+</div>
+
+
+<script src="assets/js/resume-builder.js"></script>
+
+</body>
+
+</html>

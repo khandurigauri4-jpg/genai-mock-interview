@@ -1,0 +1,153 @@
+*{
+
+    margin:0;
+
+    padding:0;
+
+    box-sizing:border-box;
+
+    font-family:Arial,sans-serif;
+
+}
+
+body{
+
+    background:#F5F7FF;
+
+}
+
+.interview-type{
+
+    width:90%;
+
+    margin:auto;
+
+    padding:70px 0;
+
+    text-align:center;
+
+}
+
+.interview-type h1{
+
+    font-size:42px;
+
+    color:#1E293B;
+
+    margin-bottom:15px;
+
+}
+
+.interview-type p{
+
+    color:#64748B;
+
+    margin-bottom:60px;
+
+}
+
+.card-container{
+
+    display:flex;
+
+    justify-content:center;
+
+    gap:40px;
+
+}
+
+.card{
+
+    width:420px;
+
+    background:white;
+
+    padding:40px;
+
+    border-radius:20px;
+
+    box-shadow:0 8px 20px rgba(0,0,0,.08);
+
+    transition:.3s;
+
+}
+
+.card:hover{
+
+    transform:translateY(-10px);
+
+}
+
+.card i{
+
+    font-size:60px;
+
+    color:#5B5FF7;
+
+    margin-bottom:25px;
+
+}
+
+.card h2{
+
+    margin-bottom:25px;
+
+    color:#1E293B;
+
+}
+
+.card ul{
+
+    text-align:left;
+
+    margin-bottom:35px;
+
+    list-style:none;
+
+}
+
+.card ul li{
+
+    margin:15px 0;
+
+    color:#64748B;
+
+}
+
+.card ul li::before{
+
+    content:"✓ ";
+
+    color:#5B5FF7;
+
+    font-weight:bold;
+
+}
+
+.select-btn{
+
+    width:100%;
+
+    padding:15px;
+
+    border:none;
+
+    border-radius:12px;
+
+    background:#5B5FF7;
+
+    color:white;
+
+    font-size:16px;
+
+    cursor:pointer;
+
+    transition:.3s;
+
+}
+
+.select-btn:hover{
+
+    background:#4448E8;
+
+}

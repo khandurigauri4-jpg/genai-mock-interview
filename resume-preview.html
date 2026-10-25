@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Resume Preview | InterviewAI</title>
+
+    <link rel="stylesheet" href="assets/css/resume-preview.css">
+
+</head>
+
+<body>
+
+<div class="preview-page">
+
+
+    <!-- TOP CONTROLS -->
+
+    <div class="preview-header">
+
+        <h1>Resume Preview</h1>
+
+        <div class="preview-buttons">
+
+            <button id="editBtn">
+                Edit Resume
+            </button>
+
+            <button id="atsBtn">
+                Check ATS Score
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- RESUME -->
+
+    <div class="resume" id="resume">
+
+
+        <!-- HEADER -->
+
+        <header class="resume-header">
+
+            <h1 id="resumeName"></h1>
+
+            <div class="contact-info" id="contactInfo"></div>
+
+        </header>
+
+
+        <!-- SUMMARY -->
+
+        <section id="summarySection">
+
+            <h2>PROFESSIONAL SUMMARY</h2>
+
+            <div class="section-line"></div>
+
+            <p id="resumeSummary"></p>
+
+        </section>
+
+
+        <!-- EDUCATION -->
+
+        <section id="educationSection">
+
+            <h2>EDUCATION</h2>
+
+            <div class="section-line"></div>
+
+            <div class="education-item">
+
+                <div class="education-main">
+
+                    <strong id="resumeDegree"></strong>
+
+                    <span id="resumeCollege"></span>
+
+                </div>
+
+                <div class="education-side">
+
+                    <span id="resumeGraduation"></span>
+
+                    <span id="resumeCgpa"></span>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SKILLS -->
+
+        <section id="skillsSection">
+
+            <h2>TECHNICAL SKILLS</h2>
+
+            <div class="section-line"></div>
+
+            <div id="resumeSkills"></div>
+
+        </section>
+
+
+        <!-- EXPERIENCE -->
+
+        <section id="experienceSection">
+
+            <h2>EXPERIENCE</h2>
+
+            <div class="section-line"></div>
+
+            <div class="experience-item">
+
+                <div class="experience-heading">
+
+                    <strong id="resumeRole"></strong>
+
+                    <span id="resumeDuration"></span>
+
+                </div>
+
+                <strong id="resumeCompany"></strong>
+
+                <p id="resumeExperience"></p>
+
+            </div>
+
+        </section>
+
+
+        <!-- PROJECTS -->
+
+        <section id="projectsSection">
+
+            <h2>PROJECTS</h2>
+
+            <div class="section-line"></div>
+
+
+            <div class="project-item" id="projectOne">
+
+                <h3 id="resumeProject1Title"></h3>
+
+                <p id="resumeProject1"></p>
+
+            </div>
+
+
+            <div class="project-item" id="projectTwo">
+
+                <h3 id="resumeProject2Title"></h3>
+
+                <p id="resumeProject2"></p>
+
+            </div>
+
+        </section>
+
+
+        <!-- CERTIFICATIONS -->
+
+        <section id="certificationSection">
+
+            <h2>CERTIFICATIONS</h2>
+
+            <div class="section-line"></div>
+
+            <ul id="resumeCertifications"></ul>
+
+        </section>
+
+
+        <!-- ACHIEVEMENTS -->
+
+        <section id="achievementSection">
+
+            <h2>ACHIEVEMENTS</h2>
+
+            <div class="section-line"></div>
+
+            <ul id="resumeAchievements"></ul>
+
+        </section>
+
+
+    </div>
+
+</div>
+
+
+<script src="assets/js/resume-preview.js"></script>
+
+</body>
+
+</html>

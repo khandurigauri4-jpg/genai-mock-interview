@@ -90,6 +90,45 @@ document.addEventListener("DOMContentLoaded", function () {
     const MAX_QUESTIONS = 10;
 
     let interviewStartTime = Date.now();
+    const timerElement = document.getElementById("timer");
+    const QUESTION_TIME_SECONDS = 5 * 60;
+    let questionTimeRemaining = QUESTION_TIME_SECONDS;
+    let questionTimerInterval = null;
+
+    function stopQuestionTimer() {
+        if (questionTimerInterval) {
+            clearInterval(questionTimerInterval);
+            questionTimerInterval = null;
+        }
+    }
+
+    function startQuestionTimer() {
+        stopQuestionTimer();
+        questionTimeRemaining = QUESTION_TIME_SECONDS;
+        const updateTimerText = function () {
+            if (timerElement) {
+                const minutes = Math.floor(questionTimeRemaining / 60);
+                const seconds = questionTimeRemaining % 60;
+                timerElement.textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+            }
+        };
+        updateTimerText();
+        questionTimerInterval = setInterval(function () {
+            questionTimeRemaining -= 1;
+            updateTimerText();
+            if (questionTimeRemaining <= 0) {
+                stopQuestionTimer();
+                alert("Time for this question has ended. Your current answer will be saved.");
+                if (currentQuestion >= MAX_QUESTIONS) {
+                    const endButton = document.getElementById("endBtn");
+                    if (endButton) endButton.click();
+                } else {
+                    const nextButton = document.getElementById("nextBtn");
+                    if (nextButton) nextButton.click();
+                }
+            }
+        }, 1000);
+    }
 
 
     // =====================================================
@@ -444,114 +483,49 @@ document.addEventListener("DOMContentLoaded", function () {
     // =====================================================
 
     function loadOpenCV() {
-
         return new Promise(function (resolve, reject) {
+            console.log("🤖 Loading OpenCV.js...");
 
-            console.log(
-                "🤖 Loading OpenCV.js..."
-            );
-
-
-            if (
-                typeof cv !== "undefined" &&
-                cv.Mat
-            ) {
-
-                console.log(
-                    "✅ OpenCV already loaded."
-                );
-
-                openCVReady = true;
-
-                resolve();
-
-                return;
-
+            function waitUntilReady(startTime) {
+                if (typeof cv !== "undefined" && cv.Mat && cv.imread) {
+                    openCVReady = true;
+                    console.log("✅ OpenCV runtime initialized.");
+                    resolve();
+                    return;
+                }
+                if (Date.now() - startTime > 25000) {
+                    reject(new Error("OpenCV runtime did not initialize within 25 seconds."));
+                    return;
+                }
+                setTimeout(function () { waitUntilReady(startTime); }, 150);
             }
 
+            if (typeof cv !== "undefined" && cv.Mat && cv.imread) {
+                openCVReady = true;
+                resolve();
+                return;
+            }
 
-            const script =
-                document.createElement("script");
+            const existing = document.querySelector('script[data-opencv-loader="true"]');
+            if (existing) {
+                waitUntilReady(Date.now());
+                return;
+            }
 
-
-            script.src =
-                "https://docs.opencv.org/4.x/opencv.js";
-
-
+            const script = document.createElement("script");
+            script.src = "https://docs.opencv.org/4.x/opencv.js";
             script.async = true;
-
-
-            script.onload =
-                function () {
-
-                    console.log(
-                        "✅ OpenCV.js library loaded."
-                    );
-
-
-                    if (
-                        typeof cv !== "undefined"
-                    ) {
-
-                        if (cv.Mat) {
-
-                            openCVReady = true;
-
-                            console.log(
-                                "✅ OpenCV is ready."
-                            );
-
-                            resolve();
-
-                        } else {
-
-                            cv["onRuntimeInitialized"] =
-                                function () {
-
-                                    openCVReady = true;
-
-                                    console.log(
-                                        "✅ OpenCV runtime initialized."
-                                    );
-
-                                    resolve();
-
-                                };
-
-                        }
-
-                    } else {
-
-                        reject(
-                            new Error(
-                                "OpenCV object not available."
-                            )
-                        );
-
-                    }
-
-                };
-
-
-            script.onerror =
-                function (error) {
-
-                    console.error(
-                        "❌ Failed to load OpenCV.js.",
-                        error
-                    );
-
-                    reject(error);
-
-                };
-
-
+            script.dataset.opencvLoader = "true";
+            script.onload = function () {
+                // OpenCV's wasm runtime may initialise after the script load event.
+                waitUntilReady(Date.now());
+            };
+            script.onerror = function () {
+                reject(new Error("Could not load OpenCV.js. Check internet access or CDN availability."));
+            };
             document.head.appendChild(script);
-
         });
-
     }
-
 
     // =====================================================
     // SETUP FACE MESH
@@ -1720,13 +1694,12 @@ document.addEventListener("DOMContentLoaded", function () {
             return {
 
                 analyzedFrames: 0,
-
-                averageBrightness: 0,
-
-                averageSharpness: 0,
-
-                frameQuality: 0,
-
+                openCVFrameCount: 0,
+                averageBrightness: null,
+                averageSharpness: null,
+                frameQuality: null,
+                frameQualityScore: null,
+                frameQualityStatus: "Not analyzed",
                 status: "Not analyzed"
 
             };
@@ -1760,6 +1733,12 @@ document.addEventListener("DOMContentLoaded", function () {
             analyzedFrames:
                 openCVAnalyzedFrames,
 
+            openCVFrameCount:
+                openCVAnalyzedFrames,
+
+            framesAnalyzed:
+                openCVAnalyzedFrames,
+
             averageBrightness:
                 averageBrightness,
 
@@ -1777,6 +1756,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
             frameQualityScore:
                 frameQuality,
+
+            frameQualityStatus:
+                frameQuality >= 75 ? "Good" : frameQuality >= 50 ? "Fair" : "Needs better lighting or focus",
 
             status:
                 "Analyzed successfully"
@@ -2079,210 +2061,80 @@ document.addEventListener("DOMContentLoaded", function () {
     // =====================================================
 
     function getVisualAnalysis() {
+        const durationSeconds = Math.max(1, Math.round((Date.now() - interviewStartTime) / 1000));
+        const durationMinutes = durationSeconds / 60;
+        const hasFaceData = totalEyeFrames > 0;
+        const hasPoseData = totalPoseFrames > 0;
+        const blinkRate = durationMinutes > 0 && hasFaceData
+            ? Math.round(blinkCount / durationMinutes)
+            : null;
 
-        const durationMinutes =
-            (
-                Date.now() -
-                interviewStartTime
-            ) / 60000;
-
-
-        let blinkRate = 0;
-
-
-        if (
-            durationMinutes > 0
-        ) {
-
-            blinkRate =
-                Math.round(
-                    blinkCount /
-                    durationMinutes
-                );
-
+        let blinkBehaviorScore = null;
+        if (hasFaceData) {
+            if (blinkRate >= 8 && blinkRate <= 30) blinkBehaviorScore = 100;
+            else if (blinkRate >= 5 && blinkRate <= 35) blinkBehaviorScore = 85;
+            else blinkBehaviorScore = 70;
         }
 
+        const faceScores = [];
+        if (hasFaceData) faceScores.push(eyeContactScore);
+        if (hasFaceData) faceScores.push(headPostureScore);
+        if (hasPoseData) faceScores.push(bodyPostureScore);
+        if (blinkBehaviorScore !== null) faceScores.push(blinkBehaviorScore);
+        const nonVerbalScore = faceScores.length
+            ? Math.round(faceScores.reduce((sum, score) => sum + score, 0) / faceScores.length)
+            : null;
 
-        // ==========================================
-        // BLINK BEHAVIOR SCORE
-        // ==========================================
-
-        let blinkBehaviorScore = 85;
-
-
-        if (
-            durationMinutes >= 0.5
-        ) {
-
-            if (
-                blinkRate >= 8 &&
-                blinkRate <= 30
-            ) {
-
-                blinkBehaviorScore = 100;
-
+        let dominantExpression = "Not evaluated";
+        const expressionTotal = expressionCounts.smiling + expressionCounts.neutral + expressionCounts.speaking;
+        if (expressionTotal > 0) {
+            dominantExpression = "Neutral";
+            if (expressionCounts.smiling > expressionCounts.neutral &&
+                expressionCounts.smiling > expressionCounts.speaking) {
+                dominantExpression = "Smiling";
+            } else if (expressionCounts.speaking > expressionCounts.neutral) {
+                dominantExpression = "Speaking";
             }
-
-            else if (
-                blinkRate >= 5 &&
-                blinkRate <= 35
-            ) {
-
-                blinkBehaviorScore = 85;
-
-            }
-
-            else {
-
-                blinkBehaviorScore = 70;
-
-            }
-
         }
 
-
-        // ==========================================
-        // NON-VERBAL SCORE
-        // ==========================================
-
-        const nonVerbalScore =
-            Math.round(
-                (
-                    eyeContactScore +
-                    headPostureScore +
-                    bodyPostureScore +
-                    blinkBehaviorScore
-                ) / 4
-            );
-
-
-        // ==========================================
-        // DOMINANT EXPRESSION
-        // ==========================================
-
-        let dominantExpression =
-            "Neutral";
-
-
-        if (
-            expressionCounts.smiling >
-            expressionCounts.neutral &&
-            expressionCounts.smiling >
-            expressionCounts.speaking
-        ) {
-
-            dominantExpression =
-                "Smiling";
-
+        const confidenceParts = [];
+        if (hasFaceData) {
+            confidenceParts.push(eyeContactScore);
+            confidenceParts.push(headPostureScore);
         }
-
-        else if (
-            expressionCounts.speaking >
-            expressionCounts.neutral
-        ) {
-
-            dominantExpression =
-                "Speaking";
-
-        }
-
-
-        // ==========================================
-        // VISUAL CONFIDENCE
-        // ==========================================
-
-        const visualConfidence =
-            Math.round(
-                (
-                    eyeContactScore +
-                    headPostureScore +
-                    bodyPostureScore
-                ) / 3
-            );
-
+        if (hasPoseData) confidenceParts.push(bodyPostureScore);
+        if (blinkBehaviorScore !== null) confidenceParts.push(blinkBehaviorScore);
+        const visualConfidence = confidenceParts.length
+            ? Math.round(confidenceParts.reduce((sum, score) => sum + score, 0) / confidenceParts.length)
+            : null;
 
         return {
-
-            eyeContact:
-                eyeContactScore,
-
-            eyeContactScore:
-                eyeContactScore,
-
-            eyeContactStatus:
-                currentGazeStatus,
-
-            blinkCount:
-                blinkCount,
-
-            blinkRate:
-                blinkRate,
-
-            blinkBehaviorScore:
-                blinkBehaviorScore,
-
-            headPosture:
-                currentHeadPosture,
-
-            headPostureStatus:
-                currentHeadPosture,
-
-            headPostureScore:
-                headPostureScore,
-
-            bodyLanguage:
-                bodyPostureScore,
-
-            bodyPosture:
-                currentBodyPosture,
-
-            bodyPostureScore:
-                bodyPostureScore,
-
-            facialExpression:
-                dominantExpression,
-
-            facialExpressionScore:
-                Math.min(
-                    100,
-                    Math.round(
-                        (
-                            expressionCounts.smiling +
-                            expressionCounts.neutral
-                        ) /
-                        Math.max(
-                            1,
-                            expressionCounts.smiling +
-                            expressionCounts.neutral +
-                            expressionCounts.speaking
-                        ) * 100
-                    )
-                ),
-
-            expressionCounts:
-                expressionCounts,
-
-            visualConfidence:
-                visualConfidence,
-
-            nonVerbalScore:
-                nonVerbalScore,
-
-            analyzedFrames:
-                totalEyeFrames,
-
-            durationSeconds:
-                Math.round(
-                    (
-                        Date.now() -
-                        interviewStartTime
-                    ) / 1000
-                )
-
+            eyeContact: hasFaceData ? eyeContactScore : null,
+            eyeContactScore: hasFaceData ? eyeContactScore : null,
+            eyeContactStatus: hasFaceData ? currentGazeStatus : "Not evaluated — no face frames detected",
+            blinkCount: hasFaceData ? blinkCount : null,
+            blinkRate,
+            blinkBehaviorScore,
+            headPosture: hasFaceData ? currentHeadPosture : "Not evaluated",
+            headPostureStatus: hasFaceData ? currentHeadPosture : "Not evaluated — no face frames detected",
+            headPostureScore: hasFaceData ? headPostureScore : null,
+            bodyLanguage: hasPoseData ? bodyPostureScore : null,
+            bodyPosture: hasPoseData ? currentBodyPosture : "Not evaluated",
+            bodyPostureStatus: hasPoseData ? currentBodyPosture : "Not evaluated — no pose frames detected",
+            bodyPostureScore: hasPoseData ? bodyPostureScore : null,
+            facialExpression: dominantExpression,
+            facialExpressionScore: expressionTotal > 0
+                ? Math.round(((expressionCounts.smiling + expressionCounts.neutral) / expressionTotal) * 100)
+                : null,
+            expressionCounts,
+            visualConfidence,
+            nonVerbalScore,
+            analyzedFrames: totalEyeFrames,
+            faceDetectedFrames: totalEyeFrames,
+            poseFrames: totalPoseFrames,
+            durationSeconds
         };
-
     }
-
 
     // =====================================================
     // VOICE ANALYSIS
@@ -2690,13 +2542,13 @@ document.addEventListener("DOMContentLoaded", function () {
         );
 
 
-    if (
-        "webkitSpeechRecognition"
-        in window
-    ) {
+    const SpeechRecognitionAPI =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognitionAPI) {
 
         recognition =
-            new webkitSpeechRecognition();
+            new SpeechRecognitionAPI();
 
 
         recognition.continuous =
@@ -2884,6 +2736,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // =====================================================
 
     async function generateQuestion() {
+        stopQuestionTimer();
 
         questionText.textContent =
             "Generating question...";
@@ -2953,6 +2806,7 @@ document.addEventListener("DOMContentLoaded", function () {
             questionText.textContent =
                 data.question;
 
+            startQuestionTimer();
 
             questions[
                 currentQuestion - 1
@@ -3092,6 +2946,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 button.addEventListener(
                     "click",
                     async function () {
+                        stopQuestionTimer();
 
                         // =========================================
                         // SAVE FINAL ANSWER
@@ -3571,13 +3426,13 @@ document.addEventListener("DOMContentLoaded", function () {
     // OpenCV
 
     loadOpenCV()
+        .then(function () {
+            if (cameraVideo && cameraVideo.readyState >= 2) {
+                startVisualDetection();
+            }
+        })
         .catch(function (error) {
-
-            console.error(
-                "❌ OpenCV initialization failed:",
-                error
-            );
-
+            console.error("❌ OpenCV initialization failed:", error);
         });
 
 

@@ -2,214 +2,134 @@ require("dotenv").config();
 
 const { GoogleGenAI } = require("@google/genai");
 
-const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY
-});
+function getAI() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
+        throw new Error("GEMINI_API_KEY is missing. Add a free Google AI Studio API key to server/.env or the project-root .env file.");
+    }
+    return new GoogleGenAI({ apiKey });
+}
 
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
 
-async function generateInterviewQuestion(
-    type,
-    difficulty,
-    previousQuestions = []
-) {
+function cleanJson(text) {
+    let result = String(text || "").trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+    const first = result.indexOf("{");
+    const last = result.lastIndexOf("}");
+    if (first >= 0 && last > first) result = result.slice(first, last + 1);
+    return JSON.parse(result);
+}
 
-    const previousQuestionsText =
-        previousQuestions.length > 0
-            ? previousQuestions
-                .map((q, index) => `${index + 1}. ${q}`)
-                .join("\n")
-            : "None";
-
-
+async function generateInterviewQuestion(type, difficulty, previousQuestions = []) {
+    const previous = Array.isArray(previousQuestions) ? previousQuestions : [];
+    const previousText = previous.length ? previous.map((q, i) => `${i + 1}. ${q}`).join("\n") : "None";
     const prompt = `
-You are an expert interviewer conducting a realistic mock interview.
-
-Interview Type: ${type}
-Difficulty Level: ${difficulty}
-
-Generate ONE completely new interview question.
-
-IMPORTANT RULES:
-1. The question MUST be different from all previously asked questions.
-2. Do NOT repeat or rephrase any previous question.
-3. Ask about a different topic or aspect of the candidate.
-4. Make the question realistic and suitable for a real interview.
-5. Return ONLY the question.
-6. Do not provide an answer.
-7. Do not number the question.
-
-Previously asked questions:
-${previousQuestionsText}
-
-Generate the next NEW interview question now.
-`;
-
-
-    // Try up to 3 times
-    for (let attempt = 1; attempt <= 3; attempt++) {
-
+You are a professional mock interviewer.
+Interview type: ${type}.
+Difficulty: ${difficulty}.
+Difficulty rules:
+- Beginner: fundamentals, clear definitions, simple examples, basic behavioural questions.
+- Intermediate: apply concepts, explain trade-offs, solve multi-step problems, give specific behavioural examples.
+- Advanced: deep reasoning, edge cases, architecture/trade-offs, complex scenarios, follow-up depth.
+For HR interviews ask behavioural, teamwork, motivation, conflict, leadership, strengths, or career questions.
+For Technical interviews ask relevant CS/software/engineering technical questions.
+Generate exactly ONE question, not an answer. Do not number it.
+It must not duplicate or merely paraphrase a previous question.
+Previous questions:
+${previousText}
+Return only the question text.`;
+    let lastError;
+    for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-
-            console.log(
-                `🤖 Gemini attempt ${attempt}/3`
-            );
-
-            const response = await ai.models.generateContent({
-                model: "gemini-3.6-flash",
-                contents: prompt
-            });
-
-            return response.text.trim();
-
+            const ai = getAI();
+            const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
+            const question = String(response.text || "").trim();
+            if (!question) throw new Error("Gemini returned an empty question.");
+            return question.replace(/^["'`]+|["'`]+$/g, "");
         } catch (error) {
-
-            console.error(
-                `❌ Gemini attempt ${attempt} failed:`,
-                error.message
-            );
-
-            if (attempt === 3) {
-                throw error;
-            }
-
-            const waitTime = attempt * 2000;
-
-            console.log(
-                `⏳ Retrying in ${waitTime / 1000} seconds...`
-            );
-
-            await new Promise(resolve =>
-                setTimeout(resolve, waitTime)
-            );
+            lastError = error;
+            const message = String(error.message || error);
+            // Do not waste free quota by retrying rate-limit or quota errors.
+            if (/429|quota|resource_exhausted|api key|permission|unauthorized/i.test(message) || attempt === 2) break;
+            await new Promise(resolve => setTimeout(resolve, 1200));
         }
     }
+    throw lastError;
 }
 
-
-module.exports = {
-    generateInterviewQuestion,
-    evaluateInterview
-};
-// ===================================
-// EVALUATE COMPLETE INTERVIEW
-// ===================================
-
-async function evaluateInterview(questions, answers, type, difficulty) {
-
-    const interviewData = questions.map((question, index) => {
-
-        return {
-            question: question,
-            answer: answers[index] || ""
-        };
-
-    });
-
-
+async function evaluateInterview(questions = [], answers = [], type = "HR", difficulty = "Beginner") {
+    const safeQuestions = Array.isArray(questions) ? questions : [];
+    const safeAnswers = Array.isArray(answers) ? answers : [];
+    const interviewData = safeQuestions.map((question, index) => ({
+        question: String(question || ""),
+        answer: String(safeAnswers[index] || "").trim()
+    }));
+    const allBlank = interviewData.every(item => !item.answer);
     const prompt = `
-You are an expert professional interviewer.
-
-Evaluate the candidate's complete mock interview.
-
-Interview Type: ${type}
-Difficulty: ${difficulty}
-
-Here are the interview questions and candidate answers:
-
-${JSON.stringify(interviewData, null, 2)}
-
-Evaluate the interview carefully.
-
-For EACH question, provide:
-1. score out of 10
-2. strengths
-3. weaknesses
-4. improvement suggestion
-
-Then provide an OVERALL evaluation.
-
-The overall evaluation must contain:
-- overallScore out of 100
-- communicationScore out of 100
-- technicalScore out of 100
-- confidenceScore out of 100
-- strengths: array of important strengths
-- improvements: array of important areas for improvement
-- finalFeedback: short professional summary
-
-IMPORTANT:
-- Evaluate only what the candidate actually answered.
-- Do not invent information.
-- Be realistic but constructive.
-- Return ONLY valid JSON.
-- Do not use markdown.
-- Do not add explanations outside the JSON.
-
-Use exactly this JSON structure:
-
+You are a fair, evidence-based professional interview evaluator.
+Interview type: ${type}. Difficulty: ${difficulty}.
+Evaluate only the supplied questions and answers. Never reward an unanswered question.
+If an answer is empty, give that question score 0/10 and explain that it was unanswered.
+Scores must reflect the actual answer quality, relevance, correctness, reasoning and clarity; do not reuse a default score.
+Return valid JSON only with this exact structure:
 {
-    "overallScore": 0,
-    "communicationScore": 0,
-    "technicalScore": 0,
-    "confidenceScore": 0,
-    "questionEvaluations": [
-        {
-            "question": "",
-            "answer": "",
-            "score": 0,
-            "strengths": [],
-            "weaknesses": [],
-            "suggestion": ""
-        }
-    ],
-    "strengths": [],
-    "improvements": [],
-    "finalFeedback": ""
+ "overallScore": 0,
+ "communicationScore": 0,
+ "technicalScore": 0,
+ "confidenceScore": 0,
+ "questionEvaluations": [{"question":"","answer":"","score":0,"strengths":[],"weaknesses":[],"suggestion":""}],
+ "strengths": [],
+ "improvements": [],
+ "finalFeedback": ""
 }
+Questions and answers:
+${JSON.stringify(interviewData, null, 2)}
 `;
-
-
-    try {
-
-        console.log("🤖 Evaluating complete interview...");
-
-        const response = await ai.models.generateContent({
-
-            model: "gemini-3.6-flash",
-
-            contents: prompt
-
-        });
-
-
-        let result = response.text.trim();
-
-
-        // Remove markdown code fences if Gemini adds them
-        result = result
-            .replace(/^```json\s*/i, "")
-            .replace(/^```\s*/i, "")
-            .replace(/\s*```$/i, "")
-            .trim();
-
-
-        const evaluation = JSON.parse(result);
-
-
-        console.log("✅ Interview evaluation generated.");
-
-        return evaluation;
-
-
-    } catch (error) {
-
-        console.error(
-            "❌ Interview evaluation error:",
-            error.message
-        );
-
-        throw error;
-
-    }
-
+    const ai = getAI();
+    const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
+    const evaluation = cleanJson(response.text);
+    if (!Array.isArray(evaluation.questionEvaluations)) evaluation.questionEvaluations = [];
+    // Keep one evaluation per asked question, even if the model omits one.
+    evaluation.questionEvaluations = interviewData.map((item, index) => {
+        const found = evaluation.questionEvaluations.find(q =>
+            String(q.question || "").trim().toLowerCase() === item.question.trim().toLowerCase()
+        ) || evaluation.questionEvaluations[index] || {};
+        const answer = item.answer;
+        return {
+            question: item.question,
+            answer,
+            score: answer ? Math.max(0, Math.min(10, Number(found.score) || 0)) : 0,
+            strengths: Array.isArray(found.strengths) ? found.strengths : [],
+            weaknesses: Array.isArray(found.weaknesses) ? found.weaknesses : (answer ? [] : ["No answer was provided."]),
+            suggestion: String(found.suggestion || (answer ? "Add a specific example and explain your reasoning." : "Attempt the question before ending the interview."))
+        };
+    });
+    const avgQuestion = evaluation.questionEvaluations.length
+        ? evaluation.questionEvaluations.reduce((sum, q) => sum + q.score * 10, 0) / evaluation.questionEvaluations.length
+        : 0;
+    const communication = Math.max(0, Math.min(100, Number(evaluation.communicationScore) || 0));
+    const technical = Math.max(0, Math.min(100, Number(evaluation.technicalScore) || 0));
+    const confidence = Math.max(0, Math.min(100, Number(evaluation.confidenceScore) || 0));
+    // Derive overall from this interview's actual per-question and dimension scores,
+    // rather than accepting a repeated/default overall score from the model.
+    evaluation.overallScore = allBlank ? 0 : Math.round(
+        avgQuestion * 0.4 + communication * 0.2 + technical * 0.2 + confidence * 0.2
+    );
+    evaluation.communicationScore = allBlank ? 0 : communication;
+    evaluation.technicalScore = allBlank ? 0 : technical;
+    evaluation.confidenceScore = allBlank ? 0 : confidence;
+    evaluation.strengths = allBlank ? [] : (Array.isArray(evaluation.strengths) ? evaluation.strengths : []);
+    evaluation.improvements = allBlank
+        ? ["Answer each question to receive meaningful feedback."]
+        : (Array.isArray(evaluation.improvements) ? evaluation.improvements : []);
+    evaluation.finalFeedback = allBlank
+        ? "No answers were submitted. Complete the interview and provide answers to receive a meaningful evaluation."
+        : String(evaluation.finalFeedback || "Review the question-level feedback and practise the suggested improvements.");
+    evaluation.evaluationSource = "Gemini";
+    return evaluation;
 }
+
+module.exports = { generateInterviewQuestion, evaluateInterview };

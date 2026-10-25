@@ -14,10 +14,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     // =========================================================
     function firstNumber(...values) {
         for (const value of values) {
+            if (value === null || value === undefined || value === "") continue;
             const number = Number(value);
             if (Number.isFinite(number)) return number;
         }
         return 0;
+    }
+
+    function firstMeasuredNumber(...values) {
+        for (const value of values) {
+            if (value === null || value === undefined || value === "") continue;
+            const number = Number(value);
+            if (Number.isFinite(number) && number >= 0) return number;
+        }
+        return null;
     }
 
     function clamp(value) {
@@ -201,10 +211,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             Array.isArray(data.feedback) &&
             data.feedback.length > 0
         ) {
-            feedback =
-                data.feedback[
-                    data.feedback.length - 1
-                ];
+            // API sorts newest first; use the first item.
+            feedback = data.feedback[0];
         } else if (
             data &&
             data.success &&
@@ -246,6 +254,13 @@ document.addEventListener("DOMContentLoaded", async function () {
             localStorage.getItem(
                 "voiceAnalysis"
             ) || "{}"
+        );
+
+    const openCVAnalysis =
+        feedback?.opencvAnalysis ||
+        feedback?.openCVAnalysis ||
+        JSON.parse(
+            localStorage.getItem("openCVAnalysis") || "{}"
         );
 
     if (!feedback) {
@@ -301,143 +316,162 @@ document.addEventListener("DOMContentLoaded", async function () {
             )
         );
 
-    const voiceClarity =
-        clamp(
-            firstNumber(
-                feedback.voiceClarity,
-                voiceAnalysis.voiceClarityScore
-            )
-        );
+    const faceFrames = firstNumber(
+        visualAnalysis.faceDetectedFrames,
+        visualAnalysis.analyzedFrames
+    );
+    const poseFrames = firstNumber(visualAnalysis.poseFrames);
+    const cvFrames = firstNumber(
+        openCVAnalysis.openCVFrameCount,
+        openCVAnalysis.framesAnalyzed,
+        openCVAnalysis.analyzedFrames,
+        feedback.framesAnalyzed
+    );
 
-    const eyeContact =
-        clamp(
-            firstNumber(
-                feedback.eyeContact,
-                visualAnalysis.eyeContactScore
-            )
-        );
+    const voiceClarityRaw = firstMeasuredNumber(
+        voiceAnalysis.voiceClarity,
+        voiceAnalysis.voiceClarityScore,
+        feedback.voiceClarity
+    );
+    const voiceHasTranscript = Math.max(
+        Number(voiceAnalysis.wordsPerMinute) || 0,
+        Number(feedback.wordsPerMinute) || 0
+    ) > 0 || /transcript/i.test(String(voiceAnalysis.status || ""));
+    const voiceClarity = (voiceClarityRaw === null || (voiceClarityRaw === 0 && !voiceHasTranscript))
+        ? null : clamp(voiceClarityRaw);
 
-    const bodyLanguage =
-        clamp(
-            firstNumber(
-                feedback.bodyLanguage,
-                feedback.bodyPosture,
-                visualAnalysis.bodyPostureScore
-            )
-        );
+    const eyeContactRaw = firstMeasuredNumber(
+        visualAnalysis.eyeContactScore,
+        visualAnalysis.eyeContact,
+        feedback.eyeContactScore,
+        feedback.eyeContact
+    );
+    const eyeContact = (faceFrames > 0 || (eyeContactRaw !== null && eyeContactRaw > 0))
+        ? clamp(eyeContactRaw ?? 0) : null;
 
-    const nonVerbal =
-        clamp(
-            firstNumber(
-                feedback.nonVerbalScore,
-                visualAnalysis.nonVerbalScore,
-                (
-                    eyeContact +
-                    bodyLanguage
-                ) / 2
-            )
-        );
+    const bodyLanguageRaw = firstMeasuredNumber(
+        visualAnalysis.bodyPostureScore,
+        visualAnalysis.bodyLanguage,
+        feedback.bodyPostureScore,
+        feedback.bodyLanguage
+    );
+    const bodyLanguage = (poseFrames > 0 || (bodyLanguageRaw !== null && bodyLanguageRaw > 0))
+        ? clamp(bodyLanguageRaw ?? 0) : null;
 
-    const headPosture =
-        clamp(
-            firstNumber(
-                feedback.headPosture,
-                feedback.headPostureScore,
-                visualAnalysis.headPostureScore
-            )
-        );
+    const headPostureRaw = firstMeasuredNumber(
+        visualAnalysis.headPostureScore,
+        feedback.headPostureScore
+    );
+    const headPosture = (faceFrames > 0 || (headPostureRaw !== null && headPostureRaw > 0))
+        ? clamp(headPostureRaw ?? 0) : null;
 
-    const blinkCount =
-        firstNumber(
-            feedback.blinkCount,
-            visualAnalysis.blinkCount
-        );
+    const blinkCountRaw = firstMeasuredNumber(
+        visualAnalysis.blinkCount,
+        feedback.blinkCount
+    );
+    const blinkCount = faceFrames > 0 ? (blinkCountRaw ?? 0) : null;
 
-    const blinkRate =
-        firstNumber(
-            feedback.blinkRate,
-            visualAnalysis.blinkRate
-        );
+    const blinkRateRaw = firstMeasuredNumber(
+        visualAnalysis.blinkRate,
+        feedback.blinkRate
+    );
+    const blinkRate = faceFrames > 0 ? (blinkRateRaw ?? 0) : null;
 
-    const visualConfidence =
-        clamp(
-            firstNumber(
-                feedback.visualConfidence,
-                visualAnalysis.visualConfidence
-            )
-        );
+    const visualConfidenceRaw = firstMeasuredNumber(
+        visualAnalysis.visualConfidence,
+        feedback.visualConfidence
+    );
+    const visualConfidence = (faceFrames > 0 || poseFrames > 0)
+        ? clamp(visualConfidenceRaw ?? 0)
+        : (visualConfidenceRaw !== null && visualConfidenceRaw > 0 ? clamp(visualConfidenceRaw) : null);
 
-    const facialExpression =
-        safeText(
-            feedback.facialExpression ||
-            visualAnalysis.facialExpression,
-            "Not detected"
-        );
+    const facialExpression = safeText(
+        visualAnalysis.facialExpression || feedback.facialExpression,
+        "Not evaluated"
+    );
 
-    const bodyPostureStatus =
-        safeText(
-            feedback.bodyPostureStatus ||
-            visualAnalysis.bodyPostureStatus,
-            "Not detected"
-        );
+    let bodyPostureStatus = safeText(
+        visualAnalysis.bodyPostureStatus ||
+        visualAnalysis.bodyPosture ||
+        feedback.bodyPosture ||
+        feedback.bodyPostureStatus,
+        "Not evaluated"
+    );
+    if (bodyLanguage !== null && /not evaluated|not detected/i.test(bodyPostureStatus)) {
+        bodyPostureStatus = "Measured score in saved report";
+    }
 
-    const eyeContactStatus =
-        safeText(
-            feedback.eyeContactStatus ||
-            visualAnalysis.eyeContactStatus,
-            "Not detected"
-        );
+    let eyeContactStatus = safeText(
+        visualAnalysis.eyeContactStatus ||
+        feedback.eyeContactStatus,
+        eyeContact !== null ? "Measured during interview" : "Not evaluated"
+    );
+    if (eyeContact !== null && /not evaluated|not detected/i.test(eyeContactStatus)) {
+        eyeContactStatus = "Measured score in saved report";
+    }
 
-    const frameQualityScore =
-        clamp(
-            firstNumber(
-                feedback.openCVFrameQuality,
-                visualAnalysis.frameQualityScore
-            )
-        );
+    const frameQualityRaw = firstMeasuredNumber(
+        openCVAnalysis.frameQualityScore,
+        openCVAnalysis.frameQuality,
+        feedback.frameQuality,
+        visualAnalysis.frameQualityScore
+    );
+    const frameQualityScore = cvFrames > 0
+        ? clamp(frameQualityRaw ?? 0)
+        : (frameQualityRaw !== null && frameQualityRaw > 0 ? clamp(frameQualityRaw) : null);
 
-    const averageBrightness =
-        firstNumber(
-            feedback.averageBrightness,
-            visualAnalysis.averageBrightness
-        );
+    const averageBrightnessRaw = firstMeasuredNumber(
+        openCVAnalysis.averageBrightness,
+        openCVAnalysis.brightness,
+        feedback.averageBrightness,
+        feedback.brightness,
+        visualAnalysis.averageBrightness
+    );
+    const averageBrightness = cvFrames > 0 ? averageBrightnessRaw : null;
 
-    const averageSharpness =
-        firstNumber(
-            feedback.averageSharpness,
-            visualAnalysis.averageSharpness
-        );
+    const averageSharpnessRaw = firstMeasuredNumber(
+        openCVAnalysis.averageSharpness,
+        openCVAnalysis.sharpness,
+        feedback.averageSharpness,
+        feedback.sharpness,
+        visualAnalysis.averageSharpness
+    );
+    const averageSharpness = cvFrames > 0 ? averageSharpnessRaw : null;
 
-    const frameQualityStatus =
-        safeText(
-            feedback.frameQualityStatus ||
-            visualAnalysis.frameQualityStatus,
-            "Not analyzed"
-        );
+    const frameQualityStatus = safeText(
+        openCVAnalysis.frameQualityStatus ||
+        openCVAnalysis.status ||
+        feedback.frameQualityStatus,
+        cvFrames > 0 ? "Analyzed" : "Not analyzed"
+    );
 
-    const wordsPerMinute =
-        firstNumber(
-            feedback.wordsPerMinute,
-            voiceAnalysis.wordsPerMinute
-        );
+    const wordsPerMinute = Math.max(
+        Number(voiceAnalysis.wordsPerMinute) || 0,
+        Number(feedback.wordsPerMinute) || 0
+    );
 
     const paceStatus =
         safeText(
             feedback.paceStatus ||
-            voiceAnalysis.paceStatus,
+            voiceAnalysis.paceStatus ||
+            voiceAnalysis.status,
             "Not available"
         );
 
     const fillerWordCount =
         firstNumber(
+            voiceAnalysis.fillerWordCount,
+            voiceAnalysis.fillerWords,
             feedback.fillerWordCount,
-            voiceAnalysis.fillerWordCount
+            feedback.fillerWords
         );
 
     const fillerRate =
         firstNumber(
+            voiceAnalysis.fillerRate,
+            voiceAnalysis.fillerWordPercentage,
             feedback.fillerRate,
-            voiceAnalysis.fillerRate
+            feedback.fillerWordPercentage
         );
 
     // =========================================================
@@ -461,10 +495,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         technicalScore
     );
 
-    setScore(
-        "voiceClarityScore",
-        voiceClarity
-    );
+    if (voiceClarity !== null) {
+        setScore("voiceClarityScore", voiceClarity);
+    } else {
+        setText("voiceClarityScore", "Not evaluated");
+    }
 
     setBar(
         "communicationBar",
@@ -487,20 +522,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     );
 
     // Existing text labels from your page.
-    setText(
-        "eyeContact",
-        `${eyeContact}%`
-    );
-
-    setText(
-        "bodyLanguage",
-        `${bodyLanguage}%`
-    );
-
-    setText(
-        "voiceClarity",
-        `${voiceClarity}%`
-    );
+    setText("eyeContactScore", eyeContact === null ? "Not evaluated" : `${eyeContact}%`);
+    setText("bodyLanguageScore", bodyLanguage === null ? "Not evaluated" : `${bodyLanguage}%`);
+    setText("voiceClarityScore", voiceClarity === null ? "Not evaluated" : `${voiceClarity}%`);
+    setBar("eyeContactBar", eyeContact ?? 0);
+    setBar("bodyLanguageBar", bodyLanguage ?? 0);
 
     // =========================================================
     // STRENGTHS / IMPROVEMENTS
@@ -543,6 +569,12 @@ document.addEventListener("DOMContentLoaded", async function () {
             )
                 ? feedback.questionEvaluations
                 : [];
+
+        if (evaluations.length === 0) {
+            const empty = document.createElement("p");
+            empty.textContent = "No question-level analysis was saved for this report. Complete a new interview to generate per-question feedback.";
+            questionContainer.appendChild(empty);
+        }
 
         evaluations.forEach(
             function (item, index) {
@@ -654,32 +686,28 @@ document.addEventListener("DOMContentLoaded", async function () {
         addVisualCard(
             cards,
             "Eye Contact",
-            `${eyeContact}%`,
+            eyeContact === null ? "Not evaluated" : `${eyeContact}%`,
             eyeContactStatus
         );
 
         addVisualCard(
             cards,
             "Blink Count",
-            `${blinkCount}`,
-            `${blinkRate} blinks/min`
+            blinkCount === null ? "Not evaluated" : `${blinkCount}`,
+            blinkRate === null ? "Blink rate not evaluated" : `${blinkRate} blinks/min`
         );
 
         addVisualCard(
             cards,
             "Head Posture",
-            `${headPosture}%`,
-            safeText(
-                feedback.headPostureStatus ||
-                visualAnalysis.headPostureStatus,
-                "Posture score"
-            )
+            headPosture === null ? "Not evaluated" : `${headPosture}%`,
+            safeText(visualAnalysis.headPostureStatus || feedback.headPostureStatus || feedback.headPosture, "Not evaluated")
         );
 
         addVisualCard(
             cards,
             "Body Language",
-            `${bodyLanguage}%`,
+            bodyLanguage === null ? "Not evaluated" : `${bodyLanguage}%`,
             bodyPostureStatus
         );
 
@@ -693,14 +721,14 @@ document.addEventListener("DOMContentLoaded", async function () {
         addVisualCard(
             cards,
             "Visual Confidence",
-            `${visualConfidence}%`,
-            "Eye + head + body + blink indicators"
+            visualConfidence === null ? "Not evaluated" : `${visualConfidence}%`,
+            "Based on detected face and pose frames"
         );
 
         addVisualCard(
             cards,
             "Frame Quality",
-            `${frameQualityScore}%`,
+            frameQualityScore === null ? "Not evaluated" : `${frameQualityScore}%`,
             frameQualityStatus
         );
 
@@ -728,15 +756,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     if (opencvSummary) {
         opencvSummary.textContent =
-            `OpenCV analyzed ${
-                visualAnalysis.openCVFrameCount || 0
-            } frames. Average brightness: ${
-                averageBrightness || 0
-            }. Average sharpness: ${
-                averageSharpness || 0
-            }. Frame quality: ${
-                frameQualityStatus
-            }.`;
+            cvFrames > 0
+                ? `OpenCV analyzed ${cvFrames} frames. Average brightness: ${averageBrightness ?? "N/A"}. Average sharpness: ${averageSharpness ?? "N/A"}. Frame quality: ${frameQualityStatus}.`
+                : "OpenCV did not successfully analyze any frames during this interview. Check the browser console and camera/OpenCV initialization before the next attempt.";
     }
 
     // =========================================================
@@ -753,6 +775,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             function () {
                 const report = {
                     overallScore,
+                    evaluationSource: feedback.evaluationSource || "Gemini",
                     communicationScore,
                     confidenceScore,
                     technicalScore,
@@ -831,6 +854,14 @@ document.addEventListener("DOMContentLoaded", async function () {
                     "dashboard.html";
             }
         );
+    }
+
+    const sourceLabel = feedback.evaluationSource || feedback.evaluation?.evaluationSource;
+    const subtitle = document.getElementById("feedbackSubtitle");
+    if (subtitle && sourceLabel && String(sourceLabel).toLowerCase().includes("fallback")) {
+        subtitle.textContent = "Basic local evaluation shown because Gemini was unavailable. Connect a valid Gemini API key and retry for AI-generated evaluation.";
+    } else if (subtitle) {
+        subtitle.textContent = "Your interview report combines answer evaluation with the voice and video metrics that were successfully measured.";
     }
 
     console.log(

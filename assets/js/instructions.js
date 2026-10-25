@@ -23,6 +23,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     startButton.addEventListener("click", async function () {
 
+        const agreeCheckbox = document.getElementById("agree");
+        if (agreeCheckbox && !agreeCheckbox.checked) {
+            alert("Please confirm that you have read the interview instructions.");
+            return;
+        }
+
         const type =
             localStorage.getItem("interviewType") || "HR";
 

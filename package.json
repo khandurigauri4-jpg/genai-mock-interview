@@ -1,10 +1,12 @@
 {
   "name": "genai-mock-interview",
   "version": "1.0.0",
-  "description": "",
+  "description": "GenAI mock interview platform with voice/video analysis, resume builder and ATS estimate",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server/server.js",
+    "check": "node --check \"assets/js/ats-score.js\" && node --check \"assets/js/dashboard.js\" && node --check \"assets/js/difficulty.js\" && node --check \"assets/js/feedback.js\" && node --check \"assets/js/instructions.js\" && node --check \"assets/js/interview-type.js\" && node --check \"assets/js/interview.js\" && node --check \"assets/js/landing.js\" && node --check \"assets/js/login.js\" && node --check \"assets/js/profile.js\" && node --check \"assets/js/resume-builder.js\" && node --check \"assets/js/resume-preview.js\" && node --check \"assets/js/signup.js\" && node --check \"server/db.js\" && node --check \"server/gemini.js\" && node --check \"server/server.js\"",
+    "test": "npm run check"
   },
   "keywords": [],
   "author": "",

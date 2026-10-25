@@ -18,6 +18,16 @@ async function connectDB() {
 
         db = client.db("interviewAI");
 
+        // Helpful indexes for unique accounts and latest user reports.
+        await db.collection("users").createIndex({ email: 1 }, { unique: true });
+        await db.collection("feedback").createIndex({ userId: 1, createdAt: -1 });
+        await db.collection("interviews").createIndex({ userId: 1, startedAt: -1 });
+        await db.collection("atsScores").createIndex({ userId: 1, createdAt: -1 });
+        await db.collection("resumes").createIndex(
+            { userId: 1 },
+            { unique: true, partialFilterExpression: { userId: { $type: "string" } } }
+        );
+
         console.log("✅ MongoDB connected successfully!");
 
         return db;

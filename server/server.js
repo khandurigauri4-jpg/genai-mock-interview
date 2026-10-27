@@ -1582,12 +1582,13 @@ app.post("/api/generate-question", async (req, res) => {
             );
 
         res.json({
-
             success: true,
-
-            question:
-                question
-
+            question,
+            type: String(type).toLowerCase().includes("technical") ? "Technical" : "HR",
+            difficulty: ["Beginner", "Intermediate", "Advanced"].find(
+                level => level.toLowerCase() === String(difficulty).toLowerCase()
+            ) || "Beginner",
+            source: "Gemini"
         });
 
     } catch (error) {
@@ -1600,8 +1601,12 @@ app.post("/api/generate-question", async (req, res) => {
         res.json({
             success: true,
             question,
-            source: "Local fallback (Gemini unavailable)",
-            warning: "Gemini could not be reached or its free quota may be exhausted. This question was selected from the built-in practice set."
+            type: String(req.body?.type || "").toLowerCase().includes("technical") ? "Technical" : "HR",
+            difficulty: ["Beginner", "Intermediate", "Advanced"].find(
+                level => level.toLowerCase() === String(req.body?.difficulty || "").toLowerCase()
+            ) || "Beginner",
+            source: "Local fallback (Gemini unavailable or question rejected)",
+            warning: "Gemini question failed validation or was unavailable; a matching built-in question was used."
         });
     }
 

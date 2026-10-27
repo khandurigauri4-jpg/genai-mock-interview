@@ -106,3 +106,14 @@ npm test
 npm start
 ```
 To inspect stored collections, use MongoDB Compass and database `interviewAI`, collections `users`, `resumes`, `interviews`, `feedback`, and `atsScores`.
+
+
+## Interview question quality (Phase 2)
+
+- The selected interview type and difficulty are normalized server-side before prompting Gemini.
+- Technical mode explicitly excludes generic HR questions and requires a recognizable CS/software engineering concept.
+- HR mode explicitly excludes programming/CS question types.
+- Beginner, Intermediate, and Advanced prompts have different cognitive requirements.
+- Gemini is asked to return JSON with type/difficulty metadata; the backend validates metadata, category, and near-duplicates before showing a question.
+- Invalid, duplicate, or off-category model output falls back to the matching built-in type/difficulty question bank.
+- `GEMINI_MODEL` is read from the root `.env`; the code default is `gemini-3.5-flash`. Keep the model value that your own API key successfully tested.

@@ -1,37 +1,23 @@
-document.addEventListener("DOMContentLoaded", function () {
-
-    const buttons = document.querySelectorAll("button");
-
-    buttons.forEach(button => {
-
-        button.addEventListener("click", function () {
-
-            const text = button.textContent.trim().toLowerCase();
-
-            if (text.includes("hr")) {
-
-                localStorage.setItem(
-                    "interviewType",
-                    "HR"
-                );
-
-                window.location.href = "difficulty.html";
-
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".card").forEach((card) => {
+        const button = card.querySelector(".select-btn");
+        const heading = card.querySelector("h2");
+        if (!button || !heading) return;
+        button.addEventListener("click", (event) => {
+            event.preventDefault();
+            const title = heading.textContent.trim().toLowerCase();
+            const selectedType = title.includes("technical") ? "Technical" :
+                title.includes("hr") ? "HR" : null;
+            if (!selectedType) {
+                alert("Please select HR or Technical interview.");
+                return;
             }
-
-            else if (text.includes("technical")) {
-
-                localStorage.setItem(
-                    "interviewType",
-                    "Technical"
-                );
-
-                window.location.href = "difficulty.html";
-
-            }
-
+            localStorage.setItem("interviewType", selectedType);
+            localStorage.removeItem("interviewDifficulty");
+            localStorage.removeItem("currentInterviewId");
+            localStorage.setItem("selectedInterviewStartedAt", String(Date.now()));
+            console.log("[Interview setup] Selected type:", selectedType);
+            window.location.href = "difficulty.html";
         });
-
     });
-
 });

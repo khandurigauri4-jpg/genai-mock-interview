@@ -10,7 +10,7 @@ function getAI() {
     return new GoogleGenAI({ apiKey });
 }
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
 
 function cleanJson(text) {
     let result = String(text || "").trim()
@@ -23,41 +23,163 @@ function cleanJson(text) {
     return JSON.parse(result);
 }
 
+
+function normalizeInterviewType(type) {
+    return String(type || "HR").toLowerCase().includes("technical") ? "Technical" : "HR";
+}
+
+function normalizeDifficulty(difficulty) {
+    const levels = ["Beginner", "Intermediate", "Advanced"];
+    return levels.find(level => level.toLowerCase() === String(difficulty || "Beginner").toLowerCase()) || "Beginner";
+}
+
+function questionTokens(question) {
+    const stop = new Set(["what","when","where","which","who","why","how","would","could","should","you","your","the","and","for","with","from","that","this","are","is","was","were","can","will","have","has","had","into","about","explain","describe","tell","me","give","example","use","using","does","did","their","them","they","then","than","between","under","over","each","some","any","one","two","time","case","system","question"]);
+    return new Set((String(question).toLowerCase().match(/[a-z][a-z0-9+#.-]{1,}/g) || []).filter(t => !stop.has(t)));
+}
+
+function isNearDuplicate(question, previousQuestions) {
+    const current = questionTokens(question);
+    if (!current.size) return false;
+    return previousQuestions.some(previous => {
+        const oldText = String(previous || "").trim().toLowerCase();
+        if (!oldText) return false;
+        if (oldText === question.trim().toLowerCase()) return true;
+        const old = questionTokens(oldText);
+        const intersection = [...current].filter(token => old.has(token)).length;
+        const union = new Set([...current, ...old]).size;
+        // Catch close paraphrases without rejecting two questions that merely share a CS topic.
+        return union > 0 && intersection / union >= 0.78;
+    });
+}
+
+function hasTechnicalEvidence(question) {
+    const q = question.toLowerCase();
+    const patterns = [
+        /\b(array|linked list|stack|queue|hash ?map|hash table|tree|binary search|graph|heap|trie|recursion|sorting|searching|dynamic programming|greedy|two pointer|sliding window|big[- ]?o|time complexity|space complexity|algorithm|data structure|dsa)\b/,
+        /\b(c|c\+\+|java|python|javascript|typescript|pointer|memory allocation|garbage collection|compiler|runtime|exception|oop|object[- ]oriented|inheritance|polymorphism|interface|class|function|variable|code|programming|debug|unit test|test case)\b/,
+        /\b(operating system|process|thread|deadlock|semaphore|mutex|paging|virtual memory|cpu scheduling|context switch|race condition|synchroni[sz]ation|file system)\b/,
+        /\b(database|dbms|sql|query|join|index|normalization|transaction|acid|primary key|foreign key|nosql|replication|sharding|schema)\b/,
+        /\b(network|tcp|udp|dns|http|https|api|rest|latency|load balanc|cache|microservice|distributed|scalab|concurren|security|authentication|authorization|system design|architecture|git|version control|http status|endpoint|request|response|memory leak|performance|complexity|data integrity)\b/
+    ];
+    return patterns.some(pattern => pattern.test(q));
+}
+
+function hasClearlyHrSignal(question) {
+    return /\b(tell me about yourself|career goal|professional goal|strengths and weaknesses|why (do you want|are you interested)|what motivates you|teamwork|conflict with a colleague|leadership style|where do you see yourself|describe a time you (worked|helped|led|disagreed)|handle constructive feedback|salary expectation|why should we hire you)\b/i.test(question);
+}
+
 async function generateInterviewQuestion(type, difficulty, previousQuestions = []) {
-    const previous = Array.isArray(previousQuestions) ? previousQuestions : [];
-    const previousText = previous.length ? previous.map((q, i) => `${i + 1}. ${q}`).join("\n") : "None";
-    const prompt = `
-You are a professional mock interviewer.
-Interview type: ${type}.
-Difficulty: ${difficulty}.
-Difficulty rules:
-- Beginner: fundamentals, clear definitions, simple examples, basic behavioural questions.
-- Intermediate: apply concepts, explain trade-offs, solve multi-step problems, give specific behavioural examples.
-- Advanced: deep reasoning, edge cases, architecture/trade-offs, complex scenarios, follow-up depth.
-For HR interviews ask behavioural, teamwork, motivation, conflict, leadership, strengths, or career questions.
-For Technical interviews ask relevant CS/software/engineering technical questions.
-Generate exactly ONE question, not an answer. Do not number it.
-It must not duplicate or merely paraphrase a previous question.
-Previous questions:
+    const normalizedType = normalizeInterviewType(type);
+    const normalizedLevel = normalizeDifficulty(difficulty);
+    const previous = (Array.isArray(previousQuestions) ? previousQuestions : [])
+        .map(q => String(q || "").trim()).filter(Boolean);
+    const previousText = previous.length
+        ? previous.map((q, i) => `${i + 1}. ${q}`).join("\n")
+        : "None yet.";
+
+    const topicRotation = normalizedType === "Technical" ? `
+TECHNICAL DOMAIN ROTATION:
+Choose one primary domain that has not already been the main focus of the previous questions, when possible:
+- DSA and algorithms (arrays, linked lists, stacks/queues, trees/graphs, recursion, sorting/searching, complexity)
+- Programming fundamentals (variables/types, pointers/references, memory, functions, exceptions, OOP, code tracing)
+- Operating systems (processes/threads, scheduling, synchronization, deadlocks, memory/virtual memory)
+- DBMS and SQL (keys, joins, normalization, indexes, transactions/ACID, query reasoning)
+- Computer networks and web protocols (TCP/UDP, DNS, HTTP, REST APIs, status codes)
+- Software engineering (testing, debugging, Git, design principles, code review, reliability)
+- Problem solving / critical thinking (algorithm choice, edge cases, constraints, correctness and trade-offs)
+Do not keep choosing the same domain just because it is easy.` : `
+HR THEME ROTATION:
+Rotate between motivation, collaboration, conflict resolution, ownership, prioritisation, learning from failure, communication, leadership, ethics, adaptability, and judgement. Avoid repeating the same theme or asking the same introductory question more than once.`;
+
+    const typeRequirements = normalizedType === "Technical" ? `
+STRICT TECHNICAL MODE — NON-NEGOTIABLE:
+- This is a Computer Science / Software Engineering interview, not a general job interview.
+- The question MUST be about a concrete CS/engineering concept, coding problem, debugging situation, data model, algorithm, operating-system behaviour, database/query, network/API behaviour, testing approach, or software design decision.
+- At least one technical concept/domain must be explicit in the question.
+- Prefer a task/scenario: ask the candidate to trace, implement, compare, debug, choose an algorithm, reason about an edge case, or justify a design.
+- NEVER ask personal introduction, career goals, strengths/weaknesses, motivation, teamwork, leadership, conflict, communication, or generic behavioural questions.
+- Do not ask a generic "What is your experience with technology?" question.
+- A question like "Tell me about yourself" is invalid regardless of the difficulty selected.` : `
+STRICT HR MODE — NON-NEGOTIABLE:
+- Ask a professional behavioural, motivation, collaboration, ownership, communication, conflict-resolution, leadership, adaptability, or judgement question.
+- Do not ask programming, DSA, algorithms, complexity, code tracing, DBMS/SQL, operating systems, networking, API, or system-design questions.
+- The question should be answerable without specialist CS knowledge and should invite a real example or thoughtful professional judgement.`;
+
+    const levelRequirements = {
+        Beginner: normalizedType === "Technical"
+            ? "BEGINNER: assess one foundational CS/programming concept or one straightforward, bounded problem. Examples: trace a simple loop, choose a data structure for a basic task, explain process vs thread, identify a primary key, or reason about a simple O(n) scan. No advanced architecture or multiple constraints."
+            : "BEGINNER: ask one clear, accessible question about motivation, learning, collaboration, time management, feedback, or a simple past experience.",
+        Intermediate: normalizedType === "Technical"
+            ? "INTERMEDIATE: require applied reasoning in multiple steps. Include a realistic constraint or example; ask about an approach and why, complexity, debugging, SQL/index choices, OS synchronization, API behaviour, testing, or edge cases. A bare definition is NOT sufficient."
+            : "INTERMEDIATE: ask for a specific example involving competing priorities, a disagreement, ownership, failure, ambiguity, or communicating a difficult decision. Expect the candidate to explain actions and outcome.",
+        Advanced: normalizedType === "Technical"
+            ? "ADVANCED: require deep technical reasoning with constraints, edge cases, complexity/correctness, performance, concurrency, security, scalability, architecture, or explicit trade-offs. Ask the candidate to justify choices and discuss failure modes. A simple definition is NOT sufficient."
+            : "ADVANCED: ask a nuanced professional judgement scenario with competing stakeholder needs, ambiguity, ethical implications, risk, or long-term trade-offs. Require a reasoned decision, not a generic opinion."
+    };
+
+    const prompt = `You are the question setter for a rigorous university-to-industry mock interview.
+The application selection is authoritative:
+INTERVIEW_TYPE = ${normalizedType}
+DIFFICULTY = ${normalizedLevel}
+
+${typeRequirements}
+${topicRotation}
+
+DIFFICULTY RULES:
+${levelRequirements[normalizedLevel]}
+
+NON-REPETITION:
+- Do not repeat, paraphrase, or ask the same underlying problem as any previous question below.
+- Prefer a different subtopic/domain and a different task shape from earlier questions.
+- Questions already asked in this interview:
 ${previousText}
-Return only the question text.`;
-    let lastError;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-            const ai = getAI();
-            const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
-            const question = String(response.text || "").trim();
-            if (!question) throw new Error("Gemini returned an empty question.");
-            return question.replace(/^["'`]+|["'`]+$/g, "");
-        } catch (error) {
-            lastError = error;
-            const message = String(error.message || error);
-            // Do not waste free quota by retrying rate-limit or quota errors.
-            if (/429|quota|resource_exhausted|api key|permission|unauthorized/i.test(message) || attempt === 2) break;
-            await new Promise(resolve => setTimeout(resolve, 1200));
-        }
+
+Return exactly one JSON object and no markdown:
+{"type":"${normalizedType}","difficulty":"${normalizedLevel}","domain":"short domain label","question":"one complete interview question"}
+
+The type and difficulty fields must exactly match the application selection. The question must genuinely satisfy the rules above. Do not include an answer, hint, introduction, or multiple questions.`;
+
+    const ai = getAI();
+    const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
+    const raw = String(response.text || "").trim();
+    if (!raw) throw new Error("Gemini returned an empty question.");
+    let parsed;
+    try {
+        parsed = cleanJson(raw);
+    } catch {
+        // Plain text is accepted only if it passes the same strict content checks below.
+        parsed = { type: normalizedType, difficulty: normalizedLevel, domain: "", question: raw };
     }
-    throw lastError;
+    let question = String(parsed.question || "").trim().replace(/^["'`]+|["'`]+$/g, "");
+    question = question.replace(/^(question|technical question|hr question)\s*:\s*/i, "").trim();
+    if (!question) throw new Error("Gemini returned an empty question.");
+    if (String(parsed.type || "").toLowerCase() !== normalizedType.toLowerCase()) {
+        throw new Error("Gemini returned mismatched interview type metadata.");
+    }
+    if (String(parsed.difficulty || "").toLowerCase() !== normalizedLevel.toLowerCase()) {
+        throw new Error("Gemini returned mismatched difficulty metadata.");
+    }
+    if (isNearDuplicate(question, previous)) {
+        throw new Error("Gemini returned a repeated or near-duplicate question.");
+    }
+    if (normalizedType === "Technical") {
+        if (hasClearlyHrSignal(question) || !hasTechnicalEvidence(question)) {
+            throw new Error("Gemini returned a non-technical or generic HR-style question for Technical mode.");
+        }
+    } else if (hasTechnicalEvidence(question) && !hasClearlyHrSignal(question)) {
+        throw new Error("Gemini returned a technical question for HR mode.");
+    }
+    // Require applied reasoning for higher levels, rather than accepting definition-only prompts.
+    if (normalizedLevel === "Intermediate" && normalizedType === "Technical" &&
+        !/\b(how would|how can|compare|design|debug|implement|choose|which approach|what happens if|given|suppose|why would|analy[sz]e|trace|optimi[sz]e|complexity|trade[- ]off|scenario|constraint|edge case)\b/i.test(question)) {
+        throw new Error("Gemini's technical question did not meet Intermediate application requirements.");
+    }
+    if (normalizedLevel === "Advanced" && normalizedType === "Technical" &&
+        !/\b(design|scalab|trade[- ]off|concurren|race condition|edge case|constraint|complexity|correctness|performance|security|failure mode|distributed|architecture|optimi[sz]e|justify|bottleneck|consisten|throughput|latency)\b/i.test(question)) {
+        throw new Error("Gemini's technical question did not meet Advanced reasoning requirements.");
+    }
+    return question;
 }
 
 async function evaluateInterview(questions = [], answers = [], type = "HR", difficulty = "Beginner") {
@@ -132,4 +254,20 @@ ${JSON.stringify(interviewData, null, 2)}
     return evaluation;
 }
 
-module.exports = { generateInterviewQuestion, evaluateInterview };
+async function testGeminiConnection() {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: "Reply with exactly: Gemini connection successful."
+    });
+    const message = String(response.text || "").trim();
+    if (!message) throw new Error("Gemini responded with empty text.");
+    return { model: MODEL, message };
+}
+
+module.exports = {
+    generateInterviewQuestion,
+    evaluateInterview,
+    testGeminiConnection,
+    getGeminiModel: () => MODEL
+};

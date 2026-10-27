@@ -1,0 +1,166 @@
+require("dotenv").config();
+
+const { GoogleGenAI } = require("@google/genai");
+
+function getAI() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "YOUR_GEMINI_API_KEY") {
+        throw new Error("GEMINI_API_KEY is missing. Add a free Google AI Studio API key to server/.env or the project-root .env file.");
+    }
+    return new GoogleGenAI({ apiKey });
+}
+
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
+function cleanJson(text) {
+    let result = String(text || "").trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+    const first = result.indexOf("{");
+    const last = result.lastIndexOf("}");
+    if (first >= 0 && last > first) result = result.slice(first, last + 1);
+    return JSON.parse(result);
+}
+
+async function generateInterviewQuestion(type, difficulty, previousQuestions = []) {
+    const normalizedType = String(type || "HR").toLowerCase().includes("technical") ? "Technical" : "HR";
+    const allowedLevels = ["Beginner", "Intermediate", "Advanced"];
+    const normalizedDifficulty = allowedLevels.find(level =>
+        level.toLowerCase() === String(difficulty || "Beginner").toLowerCase()
+    ) || "Beginner";
+    const previous = Array.isArray(previousQuestions) ? previousQuestions : [];
+    const previousText = previous.length
+        ? previous.map((q, i) => `${i + 1}. ${String(q)}`).join("\n")
+        : "None";
+
+    const typeRules = normalizedType === "Technical" ? `
+STRICT TECHNICAL INTERVIEW RULES:
+- This is a SOFTWARE ENGINEERING / COMPUTER SCIENCE interview, NOT an HR interview.
+- Ask exactly one technical question about programming, DSA, algorithms, data structures, debugging, databases/SQL, operating systems, networks, APIs, OOP, software design, testing, security, or system design.
+- The question must require technical reasoning, explaining an algorithm, evaluating complexity, debugging, choosing an approach, or discussing engineering trade-offs.
+- NEVER ask "tell me about yourself", career goals, strengths/weaknesses, motivation, teamwork, conflict, leadership, or other behavioural HR questions.
+- Avoid generic questions. Include a concrete technical task, code/problem scenario, constraint, or engineering decision where appropriate.
+- Rotate domains across questions; do not keep asking the same topic.` : `
+STRICT HR INTERVIEW RULES:
+- This is a behavioural, communication, motivation, teamwork, leadership, conflict-resolution, ownership, or career-fit interview.
+- Ask one clear HR/behavioural question that invites a specific example or professional judgement.
+- NEVER ask DSA, programming syntax, algorithms, complexity, databases, operating systems, networking, coding tasks, or system design questions.
+- Avoid repeating "tell me about yourself" or "what are your goals" unless no previous questions exist. Rotate HR themes.`;
+
+    const levelRules = {
+        Beginner: `BEGINNER level: fundamentals and one clear, bounded task. Test core concepts with a straightforward example; no advanced architecture, complex edge cases, or multiple interacting constraints.`,
+        Intermediate: `INTERMEDIATE level: application and reasoning. Require multiple steps, compare approaches, explain time/space trade-offs, debug a realistic issue, or handle a moderately constrained scenario. It must be clearly harder than a definition-level beginner question.`,
+        Advanced: `ADVANCED level: deep analysis under constraints. Require edge cases, scalability, correctness proofs or justification, competing trade-offs, architecture, concurrency, performance, security, or an ambiguous high-impact scenario. It must be materially harder than an intermediate question.`
+    };
+
+    const prompt = `You are a senior professional interviewer.
+Interview type: ${normalizedType}.
+Difficulty: ${normalizedDifficulty}.
+
+${typeRules}
+
+DIFFICULTY REQUIREMENT:
+${levelRules[normalizedDifficulty]}
+
+UNIQUENESS:
+- Generate exactly ONE question, not its answer and not a list.
+- Do not repeat or paraphrase any previous question.
+- Ask a distinct question that matches BOTH the selected interview type and difficulty.
+- Output only the question text, without labels, numbering, markdown, or explanation.
+
+Previous questions in this same interview:
+${previousText}`;
+
+    const ai = getAI();
+    const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
+    let question = String(response.text || "").trim().replace(/^["'`]+|["'`]+$/g, "");
+    question = question.replace(/^(question|technical question|hr question)\s*:\s*/i, "").trim();
+    if (!question) throw new Error("Gemini returned an empty question.");
+
+    // Guard against a model returning the wrong interview category.
+    const lower = question.toLowerCase();
+    const hrSignals = /\b(tell me about yourself|career goals|strengths and weaknesses|why are you interested|what motivates you|teamwork|conflict with|leadership|manager|colleague|feedback)\b/i;
+    const technicalSignals = /\b(array|linked list|stack|queue|hash map|algorithm|time complexity|space complexity|code|debug|database|sql|api|http|thread|process|operating system|network|class|object-oriented|design a system|system design|cache|recursion|binary tree|graph|sorting|searching|race condition|index|query|software|programming|data structure|test case|unit test|security|latency|scalab|concurren)\b/i;
+    const invalidType = normalizedType === "Technical" ? hrSignals.test(question) && !technicalSignals.test(question)
+        : technicalSignals.test(question) && !hrSignals.test(question);
+    const repeated = previous.some(q => String(q).trim().toLowerCase() === lower);
+    if (invalidType || repeated) {
+        throw new Error(`Gemini returned a ${invalidType ? "question for the wrong interview type" : "duplicate question"}.`);
+    }
+    return question;
+}
+
+async function evaluateInterview(questions = [], answers = [], type = "HR", difficulty = "Beginner") {
+    const safeQuestions = Array.isArray(questions) ? questions : [];
+    const safeAnswers = Array.isArray(answers) ? answers : [];
+    const interviewData = safeQuestions.map((question, index) => ({
+        question: String(question || ""),
+        answer: String(safeAnswers[index] || "").trim()
+    }));
+    const allBlank = interviewData.every(item => !item.answer);
+    const prompt = `
+You are a fair, evidence-based professional interview evaluator.
+Interview type: ${type}. Difficulty: ${difficulty}.
+Evaluate only the supplied questions and answers. Never reward an unanswered question.
+If an answer is empty, give that question score 0/10 and explain that it was unanswered.
+Scores must reflect the actual answer quality, relevance, correctness, reasoning and clarity; do not reuse a default score.
+Return valid JSON only with this exact structure:
+{
+ "overallScore": 0,
+ "communicationScore": 0,
+ "technicalScore": 0,
+ "confidenceScore": 0,
+ "questionEvaluations": [{"question":"","answer":"","score":0,"strengths":[],"weaknesses":[],"suggestion":""}],
+ "strengths": [],
+ "improvements": [],
+ "finalFeedback": ""
+}
+Questions and answers:
+${JSON.stringify(interviewData, null, 2)}
+`;
+    const ai = getAI();
+    const response = await ai.models.generateContent({ model: MODEL, contents: prompt });
+    const evaluation = cleanJson(response.text);
+    if (!Array.isArray(evaluation.questionEvaluations)) evaluation.questionEvaluations = [];
+    // Keep one evaluation per asked question, even if the model omits one.
+    evaluation.questionEvaluations = interviewData.map((item, index) => {
+        const found = evaluation.questionEvaluations.find(q =>
+            String(q.question || "").trim().toLowerCase() === item.question.trim().toLowerCase()
+        ) || evaluation.questionEvaluations[index] || {};
+        const answer = item.answer;
+        return {
+            question: item.question,
+            answer,
+            score: answer ? Math.max(0, Math.min(10, Number(found.score) || 0)) : 0,
+            strengths: Array.isArray(found.strengths) ? found.strengths : [],
+            weaknesses: Array.isArray(found.weaknesses) ? found.weaknesses : (answer ? [] : ["No answer was provided."]),
+            suggestion: String(found.suggestion || (answer ? "Add a specific example and explain your reasoning." : "Attempt the question before ending the interview."))
+        };
+    });
+    const avgQuestion = evaluation.questionEvaluations.length
+        ? evaluation.questionEvaluations.reduce((sum, q) => sum + q.score * 10, 0) / evaluation.questionEvaluations.length
+        : 0;
+    const communication = Math.max(0, Math.min(100, Number(evaluation.communicationScore) || 0));
+    const technical = Math.max(0, Math.min(100, Number(evaluation.technicalScore) || 0));
+    const confidence = Math.max(0, Math.min(100, Number(evaluation.confidenceScore) || 0));
+    // Derive overall from this interview's actual per-question and dimension scores,
+    // rather than accepting a repeated/default overall score from the model.
+    evaluation.overallScore = allBlank ? 0 : Math.round(
+        avgQuestion * 0.4 + communication * 0.2 + technical * 0.2 + confidence * 0.2
+    );
+    evaluation.communicationScore = allBlank ? 0 : communication;
+    evaluation.technicalScore = allBlank ? 0 : technical;
+    evaluation.confidenceScore = allBlank ? 0 : confidence;
+    evaluation.strengths = allBlank ? [] : (Array.isArray(evaluation.strengths) ? evaluation.strengths : []);
+    evaluation.improvements = allBlank
+        ? ["Answer each question to receive meaningful feedback."]
+        : (Array.isArray(evaluation.improvements) ? evaluation.improvements : []);
+    evaluation.finalFeedback = allBlank
+        ? "No answers were submitted. Complete the interview and provide answers to receive a meaningful evaluation."
+        : String(evaluation.finalFeedback || "Review the question-level feedback and practise the suggested improvements.");
+    evaluation.evaluationSource = "Gemini";
+    return evaluation;
+}
+
+module.exports = { generateInterviewQuestion, evaluateInterview };

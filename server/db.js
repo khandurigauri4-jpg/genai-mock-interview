@@ -1,4 +1,6 @@
-require("dotenv").config();
+require("dotenv").config({
+    path: require("path").resolve(__dirname, "../.env")
+});
 
 const { MongoClient } = require("mongodb");
 
@@ -8,8 +10,9 @@ if (!uri) {
     throw new Error("MONGODB_URI is missing from .env");
 }
 
-const client = new MongoClient(uri);
-
+const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 15000
+});
 let db;
 
 async function connectDB() {
